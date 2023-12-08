@@ -73,13 +73,9 @@ def predict(target, input, wrapped_model):
     #inp_img.show()
 
     img_tensor = transforms.ToTensor()(inp_img)[None].to(device)
-
-    start = timeit.timeit()
     
     with torch.no_grad():
         pred_scores = wrapped_model(img_tensor)
-
-    end = timeit.timeit()
 
     confidence_score = pred_scores.max()
 
@@ -91,7 +87,6 @@ def predict(target, input, wrapped_model):
         "Predicted": pred_class,
         "Confidence Score": round(confidence_score.item(), 4),
         "Model": wrapped_model.model.name,
-        "Time": end-start
     })
     return pred_data
     
@@ -126,11 +121,12 @@ def test_model(cp_path):
         total_confidence = 0
         for label in os.listdir(direc):
             for img in os.listdir(f"{direc}{label}/"):
+                start = timeit.timeit()
                 r = predict(label, f"{direc}{label}/{img}", wrapped_model)
                 if r["Target"].lower() == r["Predicted"].lower():
                     correct += 1
                 cnt += 1
-                total_time += r["Time"]
+                total_time += timeit.timeit()-start
                 total_confidence += r["Confidence Score"]
 
         pred_data = pd.Series({
