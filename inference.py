@@ -1,20 +1,37 @@
 from pathlib import Path
-import random
 import os
-
-import numpy as np
+import argparse
+import datetime
 
 import pandas as pd
 
 from PIL import Image
 
 import timm
-from timm.models import resnet
+from timm.data import resolve_data_config
+from timm.data.transforms_factory import create_transform
 
-# Import PyTorch dependencies
+
 import torch
 from torch import nn
 from torchvision import transforms
+
+
+parser = argparse.ArgumentParser(description="Test image classifier")
+
+parser.add_argument("--model", type=str, required=True)
+parser.add_argument("--checkpoint", type=str, required=True)
+parser.add_argument("--imgpath", type=str)
+parser.add_argument("--label", type=str)
+
+args = parser.parse_args()
+
+if args.imgpath is not None and args.label is None:
+    parser.error("--imgpath requires --label.")
+if args.imgpath is None and args.label is not None:
+    parser.error("--label requires --imgpath.")
+
+
 
 class InferenceWrapper(nn.Module):
     def __init__(self, model, normalize_mean, normalize_std, scale_inp=False, channels_first=False):
@@ -43,7 +60,7 @@ class InferenceWrapper(nn.Module):
         return x
 
 def predict(target, input):
-    test_img = Image.open(input)
+    test_img = Image.open(input).convert("RGB")
     #test_img.show()
     
     target_cls = target
@@ -59,37 +76,35 @@ def predict(target, input):
 
     confidence_score = pred_scores.max()
 
-    pred_class = class_names[torch.argmax(pred_scores)]
+    pred_class = class_map[class_names[torch.argmax(pred_scores)]]
 
     pred_data = pd.Series({
         "Input Size:": inp_img.size,
-        "Target Class:": target_cls,
-        "Predicted Class:": pred_class,
+        "Target": target_cls,
+        "Predicted": pred_class,
         "Confidence Score:": f"{confidence_score*100:.2f}%"
     })
     return pred_data
     
 
 if __name__ == "__main__":
+
     device = 'cpu'
     dtype = torch.float32
     
-    checkpoint_dir = Path("PetClassifier/2023-12-06_03-19-36/")
-    checkpoint_path = checkpoint_dir/"resnet18d.pth"
+
+    checkpoint_path = Path(args.checkpoint)
 
     class_names = ['Abyssinian', 'american_bulldog', 'american_pit_bull_terrier', 'basset_hound', 'beagle', 'Bengal', 'Birman', 'Bombay', 'boxer', 'British_Shorthair', 'chihuahua', 'Egyptian_Mau', 'english_cocker_spaniel', 'english_setter', 'german_shorthaired', 'great_pyrenees', 'havanese', 'japanese_chin', 'keeshond', 'leonberger', 'Maine_Coon', 'miniature_pinscher', 'newfoundland', 'Persian', 'pomeranian', 'pug', 'Ragdoll', 'Russian_Blue', 'saint_bernard', 'samoyed', 'scottish_terrier', 'shiba_inu', 'Siamese', 'Sphynx', 'staffordshire_bull_terrier', 'wheaten_terrier', 'yorkshire_terrier']
+    class_map = {'Abyssinian':'Abyssinian', 'english_cocker_spaniel':'american_bulldog', 'english_setter':'american_pit_bull_terrier', 'german_shorthaired':'basset_hound', 'great_pyrenees':'beagle', 'american_bulldog':'Bengal', 'american_pit_bull_terrier':'Birman', 'basset_hound':'Bombay', 'havanese':'boxer', 'beagle':'British_Shorthair', 'japanese_chin':'chihuahua', 'Bengal':'Egyptian_Mau', 'keeshond':'english_cocker_spaniel', 'leonberger':'english_setter', 'Maine_Coon':'german_shorthaired', 'miniature_pinscher':'great_pyrenees', 'newfoundland':'havanese', 'Persian':'japanese_chin', 'pomeranian':'keeshond', 'pug':'leonberger', 'Birman':'Maine_Coon', 'Ragdoll':'miniature_pinscher', 'Russian_Blue':'newfoundland', 'Bombay':'Persian', 'saint_bernard':'pomeranian', 'samoyed':'pug', 'boxer':'Ragdoll', 'British_Shorthair':'Russian_Blue', 'scottish_terrier':'saint_bernard', 'shiba_inu':'samoyed', 'Siamese':'scottish_terrier', 'Sphynx':'shiba_inu', 'chihuahua':'Siamese', 'Egyptian_Mau':'Sphynx', 'staffordshire_bull_terrier':'staffordshire_bull_terrier', 'wheaten_terrier':'wheaten_terrier', 'yorkshire_terrier':'yorkshire_terrier'}
 
-    resnet_model = 'resnet18d'
-    model_cfg = resnet.default_cfgs[resnet_model].default.to_dict()
+    model = timm.create_model(args.model, num_classes=len(class_names))
+    model = model.to(device=device, dtype=dtype).eval()
+    model.device = device
 
-    resnet18 = timm.create_model(resnet_model, num_classes=len(class_names))
-    resnet18 = resnet18.to(device=device, dtype=dtype).eval()
-    resnet18.device = device
+    model.load_state_dict(torch.load(checkpoint_path))
 
-    model = resnet18
-    model.load_state_dict(torch.load(checkpoint_path));
-
-    mean, std = model_cfg['mean'], model_cfg['std']
+    mean, std = ((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     norm_stats = (mean, std)
 
     normalize_mean = torch.tensor(norm_stats[0]).view(1, 3, 1, 1)
@@ -100,14 +115,27 @@ if __name__ == "__main__":
 
     res = []
     direc = "oxford-iiit-pet/images/test/"
-    for label in os.listdir(direc):
-        for img in os.listdir(f"{direc}{label}/"):
-            res.append(predict(label, f"{direc}{label}/{img}"))
+    if args.imgpath == None:
+        correct = 0
+        cnt = 0
+        for label in os.listdir(direc):
+            for img in os.listdir(f"{direc}{label}/"):
+                r = predict(label, f"{direc}{label}/{img}")
+                if r["Target"] == r["Predicted"]:
+                    correct += 1
+                cnt += 1
+                res.append(r)
+        print("ACCURACY: ", correct/cnt*100, "%")
+        
+    else:
+        r = predict(args.label, args.imgpath)
+        print(r)
+        res.append(r)
+
 
     res = pd.DataFrame(res)
-    res.to_csv("predicts.csv")
-
-    print(res)
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    res.to_csv("predictions/"+timestamp+".csv")
     
 
     

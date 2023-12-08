@@ -1,12 +1,12 @@
 import multiprocessing
-import random
 import math
 import json
 from pathlib import Path
 import datetime
-from typing import Dict, Tuple, List, Optional
+from typing import Dict, Tuple
+import argparse
 
-import pandas as pd
+from PIL import Image
 
 import timm
 from timm.data import ImageDataset as IDataset
@@ -22,11 +22,21 @@ from torch.cuda.amp import GradScaler
 from torcheval.metrics import MulticlassAccuracy
 from torchvision import transforms
 import torchvision.transforms.functional as TF
+import torchvision.transforms as T
 from torch import Tensor
 
 
 
 from tqdm.auto import tqdm
+
+
+parser = argparse.ArgumentParser(description="Train image classifier")
+parser.add_argument("--epochs", type=int, required=True)
+parser.add_argument("--model", type=str, required=True)
+
+
+args = parser.parse_args()
+
 
 
 
@@ -152,7 +162,6 @@ def run_epoch(model, dataloader, optimizer, metric, lr_scheduler, device, scaler
     
     # Iterate over data batches
     for batch_id, (inputs, targets) in enumerate(dataloader):
-        print("BATCH", batch_id)
         # Move inputs and targets to the specified device (e.g., GPU)
         inputs, targets = inputs.to(device), targets.to(device)
         
@@ -239,33 +248,66 @@ def train_loop(model, train_dataloader, valid_dataloader, optimizer, metric, lr_
     if use_amp:
         torch.cuda.empty_cache()
 
+def model_train(mod):
+    model = timm.create_model(mod, pretrained=True, num_classes=len(class_names))
+    model = model.to(device=device, dtype=dtype)
+    model.device = device
+    model.name = mod
+    model.labels = class_names
+
+    bs = 64
+
+    data_loader_params = {
+        'batch_size': bs,  # Batch size for data loading
+        'num_workers': num_workers,  # Number of subprocesses to use for data loading
+        'persistent_workers': True,  # If True, the data loader will not shutdown the worker processes after a dataset has been consumed once. This allows to maintain the worker dataset instances alive.
+        'pin_memory': True,  # If True, the data loader will copy Tensors into CUDA pinned memory before returning them. Useful when using GPU.
+        'pin_memory_device': device,  # Specifies the device where the data should be loaded. Commonly set to use the GPU.
+    }
+
+    train_dataloader = DataLoader(dataset_train, **data_loader_params, shuffle=True)
+    valid_dataloader = DataLoader(dataset_val, **data_loader_params)
+    project_dir = "PetClassifier"
+    
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    checkpoint_dir = Path(f"{project_dir}/{timestamp}")
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = checkpoint_dir/f"{model.name}.pth"
+    #print(checkpoint_path)
+
+
+    lr = 1e-3
+    epochs = args.epochs
+
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, eps=1e-5)
+    lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, 
+                                                    max_lr=lr, 
+                                                    total_steps=epochs*len(train_dataloader))
+
+    metric = MulticlassAccuracy()
+    use_amp = torch.cuda.is_available()
+    #print(use_amp)
+    train_loop(model, train_dataloader, valid_dataloader, optimizer, metric, lr_scheduler, device, epochs, use_amp, checkpoint_path)
 
 
 if __name__ == '__main__':
-    seed = 123
-    #set_seed(seed)
-
-
+    #print(timm.list_models(pretrained=True))
+    #exit()
+    
     device = "cuda"
     dtype = torch.float32
 
-
-    resnet_model = "resnet18d"
-    model_cfg = resnet.default_cfgs[resnet_model].default.to_dict()
-    #print(pd.DataFrame.from_dict(model_cfg, orient="index"))
-
-    mean, std = model_cfg['mean'], model_cfg['std']
+    mean, std = ((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     norm_stats = (mean, std)
-    print(norm_stats)
-    print(*norm_stats)
 
     trivial_aug = CustomTrivialAugmentWide()
+
     train_sz = (288,288)
     resize_pad = ResizePad(max_sz=max(train_sz))
 
     train_tfms = transforms.Compose([
         ResizePad(max_sz=max(train_sz)),
-        #trivial_aug,
+        trivial_aug,
         transforms.ToTensor(),
         transforms.Normalize(*norm_stats),
     ])
@@ -289,45 +331,19 @@ if __name__ == '__main__':
     dataset_train = ImageDataset(dataset=train_split, classes=class_names, tfms=train_tfms)
     dataset_val = ImageDataset(dataset=val_split, classes=class_names, tfms=val_tfms)
 
+    ## TEST TRANSFORMATION
+    #trans = transforms.Compose([T.ToPILImage()])
+    #img = trans(dataset_train.__getitem__(0)[0])
+    #print(img)
+    #img.show()
 
-
-    resnet18 = timm.create_model(resnet_model, pretrained=True, num_classes=len(class_names))
-    resnet18 = resnet18.to(device=device, dtype=dtype)
-    resnet18.device = device
-    resnet18.name = resnet_model
-
-    model = resnet18
-
-    bs = 32
-
-    data_loader_params = {
-        'batch_size': bs,  # Batch size for data loading
-        'num_workers': num_workers,  # Number of subprocesses to use for data loading
-        'persistent_workers': True,  # If True, the data loader will not shutdown the worker processes after a dataset has been consumed once. This allows to maintain the worker dataset instances alive.
-        'pin_memory': True,  # If True, the data loader will copy Tensors into CUDA pinned memory before returning them. Useful when using GPU.
-        'pin_memory_device': device,  # Specifies the device where the data should be loaded. Commonly set to use the GPU.
-    }
-
-    train_dataloader = DataLoader(dataset_train, **data_loader_params, shuffle=True)
-    valid_dataloader = DataLoader(dataset_val, **data_loader_params)
-    project_dir = "PetClassifier"
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    checkpoint_dir = Path(f"{project_dir}/{timestamp}")
-    checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    checkpoint_path = checkpoint_dir/f"{model.name}.pth"
-    print(checkpoint_path)
-
-
-    lr = 1e-3
-    epochs = 3
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, eps=1e-5)
-    lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, 
-                                                    max_lr=lr, 
-                                                    total_steps=epochs*len(train_dataloader))
-
-    metric = MulticlassAccuracy()
-    use_amp = torch.cuda.is_available()
-    #print(use_amp)
-    train_loop(model, train_dataloader, valid_dataloader, optimizer, metric, lr_scheduler, device, epochs, use_amp, checkpoint_path)
-
+    if args.model == "all":
+        for mod in ["resnet50.a1_in1k", "resnet101.a1h_in1k", "resnet18.a1_in1k", "efficientnet_b0.ra_in1k", "efficientnet_b3.ra2_in1k", "efficientnet_b5.sw_in12k_ft_in1k", "mobilenetv3_large_100.ra_in1k", "mobilenetv2_100.ra_in1k", "convnext_small.in12k_ft_in1k_384", "convnext_tiny.in12k_ft_in1k", "convnext_nano.in12k_ft_in1k", "regnety_080.ra3_in1k", "regnety_064.ra3_in1k", "regnety_040.ra3_in1k"]:
+            try:
+                model_train(mod)
+            except:
+                print("Error, continue loop")
+                continue
+    else:
+        model_train(args.model)
 
