@@ -17,6 +17,8 @@ import torch
 from torch import nn
 from torchvision import transforms
 
+from fvcore.nn import FlopCountAnalysis
+
 
 parser = argparse.ArgumentParser(description="Test image classifier")
 
@@ -62,8 +64,9 @@ class InferenceWrapper(nn.Module):
         x = self.softmax(x)
         return x
 
-def predict(target, input, wrapped_model):
-    test_img = Image.open(input).convert("RGB")
+def predict(target, inp, wrapped_model):
+
+    test_img = Image.open(inp).convert("RGB")
     #test_img.show()
     
     target_cls = target
@@ -73,7 +76,7 @@ def predict(target, input, wrapped_model):
     #inp_img.show()
 
     img_tensor = transforms.ToTensor()(inp_img)[None].to(device)
-    
+
     with torch.no_grad():
         pred_scores = wrapped_model(img_tensor)
 
@@ -82,7 +85,6 @@ def predict(target, input, wrapped_model):
     pred_class = class_map[class_names[torch.argmax(pred_scores)]]
 
     pred_data = pd.Series({
-        "Input Size:": inp_img.size,
         "Target": target_cls,
         "Predicted": pred_class,
         "Confidence Score": round(confidence_score.item(), 4),
@@ -110,11 +112,12 @@ def test_model(cp_path):
     wrapped_model.eval()
 
     res = []
+    res_all = []
     if args.imgpath == None:
         
         
         
-        direc = f"{args.dir}/"
+        direc = f"{args.dir}/" if args.dir[-1] not in ["/", "\\"] else args.dir
         correct = 0
         cnt = 0
         total_time = 0
@@ -129,11 +132,17 @@ def test_model(cp_path):
                 total_time += time.time()-start
                 total_confidence += r["Confidence Score"]
 
+                res_all.append(r)
+
+        inp_img = Image.open(f"{direc}{label}/{img}").convert("RGB").resize((288, 288))
+        img_tensor = transforms.ToTensor()(inp_img)[None].to(device)
+
         pred_data = pd.Series({
             "Model:": wrapped_model.model.name,
             "Accuracy:": f"{correct/cnt*100}%",
             "AVG Time": total_time/cnt,
             "AVG Confidence": total_confidence/cnt,
+            "FLOP Count": FlopCountAnalysis(wrapped_model, img_tensor).total()
         })
         res.append(pred_data)
         print("ACCURACY: ", correct/cnt*100, "%")
@@ -144,7 +153,8 @@ def test_model(cp_path):
 
 
     res = pd.DataFrame(res)
-    return res
+    res_all = pd.DataFrame(res_all)
+    return (res, res_all)
 
 if __name__ == "__main__":
 
@@ -156,24 +166,32 @@ if __name__ == "__main__":
 
     if not os.path.exists("predictions/"):
         os.makedirs("predictions/")
+    if not os.path.exists("predictions/raw/"):
+        os.makedirs("predictions/raw/")
+
 
     if args.checkpoint == "all":
         res = pd.DataFrame()
+        res_all = pd.DataFrame()
         for d in os.listdir("PetClassifier/"):
             checkpoint = os.listdir(f"PetClassifier/{d}")
             if len(checkpoint) == 0:
                 continue
             for i in checkpoint:
                 if ".pth" in i:
-                    res = pd.concat([res, test_model(f"PetClassifier/{d}/{i}")])
+                    dat = test_model(f"PetClassifier/{d}/{i}")
+                    res = pd.concat([res, dat[0]])
+                    res_all = pd.concat([res_all, dat[1]])
                     break
 
     else:
         checkpoint_path = Path(args.checkpoint)
-        res = test_model(checkpoint_path)
+        res, res_all = test_model(checkpoint_path)
+        
     
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     res.to_csv("predictions/"+timestamp+".csv")
+    res_all.to_csv("predictions/raw/"+timestamp+".csv")
         
     
 
