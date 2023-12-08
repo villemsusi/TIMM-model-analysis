@@ -2,7 +2,7 @@ from pathlib import Path
 import os
 import argparse
 import datetime
-import timeit
+import time
 
 import pandas as pd
 
@@ -121,12 +121,12 @@ def test_model(cp_path):
         total_confidence = 0
         for label in os.listdir(direc):
             for img in os.listdir(f"{direc}{label}/"):
-                start = timeit.timeit()
+                start = time.time()
                 r = predict(label, f"{direc}{label}/{img}", wrapped_model)
                 if r["Target"].lower() == r["Predicted"].lower():
                     correct += 1
                 cnt += 1
-                total_time += timeit.timeit()-start
+                total_time += time.time()-start
                 total_confidence += r["Confidence Score"]
 
         pred_data = pd.Series({
