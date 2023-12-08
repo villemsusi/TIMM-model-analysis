@@ -103,7 +103,7 @@ def test_model(cp_path):
     model.device = device
     model.name = model_name
 
-    model.load_state_dict(torch.load(cp_path))
+    model.load_state_dict(torch.load(cp_path, map_location=torch.device("cpu")))
 
     mean, std = ((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     norm_stats = (mean, std)
