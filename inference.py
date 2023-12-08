@@ -89,9 +89,9 @@ def predict(target, input, wrapped_model):
         "Input Size:": inp_img.size,
         "Target": target_cls,
         "Predicted": pred_class,
-        "Confidence Score:": f"{confidence_score*100:.2f}%",
-        "Model:": wrapped_model.model.name,
-        "Time:": end-start
+        "Confidence Score": round(confidence_score.item(), 4),
+        "Model": wrapped_model.model.name,
+        "Time": end-start
     })
     return pred_data
     
@@ -116,27 +116,39 @@ def test_model(cp_path):
 
     res = []
     if args.imgpath == None:
-        direc = args.dir
+        
+        
+        
+        direc = f"{args.dir}/"
         correct = 0
         cnt = 0
+        total_time = 0
+        total_confidence = 0
         for label in os.listdir(direc):
             for img in os.listdir(f"{direc}{label}/"):
                 r = predict(label, f"{direc}{label}/{img}", wrapped_model)
-                if r["Target"] == r["Predicted"]:
+                if r["Target"].lower() == r["Predicted"].lower():
                     correct += 1
                 cnt += 1
-                res.append(r)
+                total_time += r["Time"]
+                total_confidence += r["Confidence Score"]
+
+        pred_data = pd.Series({
+            "Model:": wrapped_model.model.name,
+            "Accuracy:": f"{correct/cnt*100}%",
+            "AVG Time": total_time/cnt,
+            "AVG Confidence": total_confidence/cnt,
+        })
+        res.append(pred_data)
         print("ACCURACY: ", correct/cnt*100, "%")
         
     else:
         r = predict(args.label, args.imgpath, wrapped_model)
-        print(r)
         res.append(r)
 
 
     res = pd.DataFrame(res)
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    res.to_csv("predictions/"+timestamp+".csv")
+    return res
 
 if __name__ == "__main__":
 
@@ -150,18 +162,22 @@ if __name__ == "__main__":
         os.makedirs("predictions/")
 
     if args.checkpoint == "all":
+        res = pd.DataFrame()
         for d in os.listdir("PetClassifier/"):
             checkpoint = os.listdir(f"PetClassifier/{d}")
             if len(checkpoint) == 0:
                 continue
             for i in checkpoint:
                 if ".pth" in i:
-                    test_model(f"PetClassifier/{d}/{i}")
+                    res = pd.concat([res, test_model(f"PetClassifier/{d}/{i}")])
                     break
 
     else:
         checkpoint_path = Path(args.checkpoint)
-        test_model(checkpoint_path)
+        res = test_model(checkpoint_path)
+    
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    res.to_csv("predictions/"+timestamp+".csv")
         
     
 
