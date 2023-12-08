@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 import argparse
 import datetime
+import timeit
 
 import pandas as pd
 
@@ -19,10 +20,10 @@ from torchvision import transforms
 
 parser = argparse.ArgumentParser(description="Test image classifier")
 
-parser.add_argument("--model", type=str, required=True)
 parser.add_argument("--checkpoint", type=str, required=True)
 parser.add_argument("--imgpath", type=str)
 parser.add_argument("--label", type=str)
+parser.add_argument("--dir", type=str)
 
 args = parser.parse_args()
 
@@ -30,6 +31,8 @@ if args.imgpath is not None and args.label is None:
     parser.error("--imgpath requires --label.")
 if args.imgpath is None and args.label is not None:
     parser.error("--label requires --imgpath.")
+if args.imgpath is None and args.dir is None:
+    parser.error("either --imgpath or --dir has to be specified")
 
 
 
@@ -59,7 +62,7 @@ class InferenceWrapper(nn.Module):
         x = self.softmax(x)
         return x
 
-def predict(target, input):
+def predict(target, input, wrapped_model):
     test_img = Image.open(input).convert("RGB")
     #test_img.show()
     
@@ -71,8 +74,12 @@ def predict(target, input):
 
     img_tensor = transforms.ToTensor()(inp_img)[None].to(device)
 
+    start = timeit.timeit()
+    
     with torch.no_grad():
         pred_scores = wrapped_model(img_tensor)
+
+    end = timeit.timeit()
 
     confidence_score = pred_scores.max()
 
@@ -82,27 +89,21 @@ def predict(target, input):
         "Input Size:": inp_img.size,
         "Target": target_cls,
         "Predicted": pred_class,
-        "Confidence Score:": f"{confidence_score*100:.2f}%"
+        "Confidence Score:": f"{confidence_score*100:.2f}%",
+        "Model:": wrapped_model.model.name,
+        "Time:": end-start
     })
     return pred_data
     
+def test_model(cp_path):
+    model_name = os.path.basename(cp_path).strip(".pth")
 
-if __name__ == "__main__":
-
-    device = 'cpu'
-    dtype = torch.float32
-    
-
-    checkpoint_path = Path(args.checkpoint)
-
-    class_names = ['Abyssinian', 'american_bulldog', 'american_pit_bull_terrier', 'basset_hound', 'beagle', 'Bengal', 'Birman', 'Bombay', 'boxer', 'British_Shorthair', 'chihuahua', 'Egyptian_Mau', 'english_cocker_spaniel', 'english_setter', 'german_shorthaired', 'great_pyrenees', 'havanese', 'japanese_chin', 'keeshond', 'leonberger', 'Maine_Coon', 'miniature_pinscher', 'newfoundland', 'Persian', 'pomeranian', 'pug', 'Ragdoll', 'Russian_Blue', 'saint_bernard', 'samoyed', 'scottish_terrier', 'shiba_inu', 'Siamese', 'Sphynx', 'staffordshire_bull_terrier', 'wheaten_terrier', 'yorkshire_terrier']
-    class_map = {'Abyssinian':'Abyssinian', 'english_cocker_spaniel':'american_bulldog', 'english_setter':'american_pit_bull_terrier', 'german_shorthaired':'basset_hound', 'great_pyrenees':'beagle', 'american_bulldog':'Bengal', 'american_pit_bull_terrier':'Birman', 'basset_hound':'Bombay', 'havanese':'boxer', 'beagle':'British_Shorthair', 'japanese_chin':'chihuahua', 'Bengal':'Egyptian_Mau', 'keeshond':'english_cocker_spaniel', 'leonberger':'english_setter', 'Maine_Coon':'german_shorthaired', 'miniature_pinscher':'great_pyrenees', 'newfoundland':'havanese', 'Persian':'japanese_chin', 'pomeranian':'keeshond', 'pug':'leonberger', 'Birman':'Maine_Coon', 'Ragdoll':'miniature_pinscher', 'Russian_Blue':'newfoundland', 'Bombay':'Persian', 'saint_bernard':'pomeranian', 'samoyed':'pug', 'boxer':'Ragdoll', 'British_Shorthair':'Russian_Blue', 'scottish_terrier':'saint_bernard', 'shiba_inu':'samoyed', 'Siamese':'scottish_terrier', 'Sphynx':'shiba_inu', 'chihuahua':'Siamese', 'Egyptian_Mau':'Sphynx', 'staffordshire_bull_terrier':'staffordshire_bull_terrier', 'wheaten_terrier':'wheaten_terrier', 'yorkshire_terrier':'yorkshire_terrier'}
-
-    model = timm.create_model(args.model, num_classes=len(class_names))
+    model = timm.create_model(model_name, num_classes=len(class_names))
     model = model.to(device=device, dtype=dtype).eval()
     model.device = device
+    model.name = model_name
 
-    model.load_state_dict(torch.load(checkpoint_path))
+    model.load_state_dict(torch.load(cp_path))
 
     mean, std = ((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     norm_stats = (mean, std)
@@ -114,13 +115,13 @@ if __name__ == "__main__":
     wrapped_model.eval()
 
     res = []
-    direc = "oxford-iiit-pet/images/test/"
     if args.imgpath == None:
+        direc = args.dir
         correct = 0
         cnt = 0
         for label in os.listdir(direc):
             for img in os.listdir(f"{direc}{label}/"):
-                r = predict(label, f"{direc}{label}/{img}")
+                r = predict(label, f"{direc}{label}/{img}", wrapped_model)
                 if r["Target"] == r["Predicted"]:
                     correct += 1
                 cnt += 1
@@ -128,7 +129,7 @@ if __name__ == "__main__":
         print("ACCURACY: ", correct/cnt*100, "%")
         
     else:
-        r = predict(args.label, args.imgpath)
+        r = predict(args.label, args.imgpath, wrapped_model)
         print(r)
         res.append(r)
 
@@ -136,6 +137,28 @@ if __name__ == "__main__":
     res = pd.DataFrame(res)
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     res.to_csv("predictions/"+timestamp+".csv")
+
+if __name__ == "__main__":
+
+    device = 'cpu'
+    dtype = torch.float32
+    
+    class_names = ['Abyssinian', 'american_bulldog', 'american_pit_bull_terrier', 'basset_hound', 'beagle', 'Bengal', 'Birman', 'Bombay', 'boxer', 'British_Shorthair', 'chihuahua', 'Egyptian_Mau', 'english_cocker_spaniel', 'english_setter', 'german_shorthaired', 'great_pyrenees', 'havanese', 'japanese_chin', 'keeshond', 'leonberger', 'Maine_Coon', 'miniature_pinscher', 'newfoundland', 'Persian', 'pomeranian', 'pug', 'Ragdoll', 'Russian_Blue', 'saint_bernard', 'samoyed', 'scottish_terrier', 'shiba_inu', 'Siamese', 'Sphynx', 'staffordshire_bull_terrier', 'wheaten_terrier', 'yorkshire_terrier']
+    class_map = {'Abyssinian':'Abyssinian', 'english_cocker_spaniel':'american_bulldog', 'english_setter':'american_pit_bull_terrier', 'german_shorthaired':'basset_hound', 'great_pyrenees':'beagle', 'american_bulldog':'Bengal', 'american_pit_bull_terrier':'Birman', 'basset_hound':'Bombay', 'havanese':'boxer', 'beagle':'British_Shorthair', 'japanese_chin':'chihuahua', 'Bengal':'Egyptian_Mau', 'keeshond':'english_cocker_spaniel', 'leonberger':'english_setter', 'Maine_Coon':'german_shorthaired', 'miniature_pinscher':'great_pyrenees', 'newfoundland':'havanese', 'Persian':'japanese_chin', 'pomeranian':'keeshond', 'pug':'leonberger', 'Birman':'Maine_Coon', 'Ragdoll':'miniature_pinscher', 'Russian_Blue':'newfoundland', 'Bombay':'Persian', 'saint_bernard':'pomeranian', 'samoyed':'pug', 'boxer':'Ragdoll', 'British_Shorthair':'Russian_Blue', 'scottish_terrier':'saint_bernard', 'shiba_inu':'samoyed', 'Siamese':'scottish_terrier', 'Sphynx':'shiba_inu', 'chihuahua':'Siamese', 'Egyptian_Mau':'Sphynx', 'staffordshire_bull_terrier':'staffordshire_bull_terrier', 'wheaten_terrier':'wheaten_terrier', 'yorkshire_terrier':'yorkshire_terrier'}
+
+
+    if args.checkpoint == "all":
+        for d in os.listdir("PetClassifier/"):
+            checkpoint = os.listdir(f"PetClassifier/{d}")
+            if len(checkpoint) == 0:
+                continue
+            pth = checkpoint[0]
+            test_model(f"PetClassifier/{d}/{pth}")
+
+    else:
+        checkpoint_path = Path(args.checkpoint)
+        test_model(checkpoint_path)
+        
     
 
     
