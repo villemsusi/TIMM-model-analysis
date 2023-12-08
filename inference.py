@@ -136,6 +136,7 @@ def test_model(cp_path):
 
     res = pd.DataFrame(res)
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    if 
     res.to_csv("predictions/"+timestamp+".csv")
 
 if __name__ == "__main__":
@@ -152,8 +153,10 @@ if __name__ == "__main__":
             checkpoint = os.listdir(f"PetClassifier/{d}")
             if len(checkpoint) == 0:
                 continue
-            pth = checkpoint[0]
-            test_model(f"PetClassifier/{d}/{pth}")
+            for i in checkpoint:
+                if ".pth" in i:
+                    test_model(f"PetClassifier/{d}/{i}")
+                    break
 
     else:
         checkpoint_path = Path(args.checkpoint)
