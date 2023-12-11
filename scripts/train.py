@@ -16,7 +16,6 @@ from PIL import Image
 
 import timm
 from timm.data import ImageDataset as IDataset
-from timm.models import resnet
 
 from datasets import load_dataset
 
