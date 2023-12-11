@@ -1,3 +1,9 @@
+'''
+This is a modified and adapted version of the code from
+https://christianjmills.com/posts/pytorch-train-image-classifier-timm-hf-tutorial/
+'''
+
+
 import multiprocessing
 import math
 import json
@@ -100,12 +106,6 @@ class ResizePad(nn.Module):
         
         return x
 class CustomTrivialAugmentWide(transforms.TrivialAugmentWide):
-    # The _augmentation_space method defines a custom augmentation space for the augmentation policy.
-    # This method returns a dictionary where each key is the name of an augmentation operation and 
-    # the corresponding value is a tuple of a tensor and a boolean value.
-    # The tensor defines the magnitude of the operation, and the boolean defines  
-    # whether to perform the operation in both the positive and negative directions (True)
-    # or only in the positive direction (False).
     def _augmentation_space(self, num_bins: int) -> Dict[str, Tuple[Tensor, bool]]:
         
         # Define custom augmentation space
@@ -267,7 +267,7 @@ def model_train(mod):
 
     train_dataloader = DataLoader(dataset_train, **data_loader_params, shuffle=True)
     valid_dataloader = DataLoader(dataset_val, **data_loader_params)
-    project_dir = "PetClassifier"
+    project_dir = "../PetClassifier"
     
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     checkpoint_dir = Path(f"{project_dir}/{timestamp}")
@@ -317,14 +317,14 @@ if __name__ == '__main__':
         transforms.Normalize(*norm_stats),
     ])
 
-    dataset_classes = IDataset("oxford-iiit-pet/images")
+    dataset_classes = IDataset("../oxford-iiit-pet/images")
     class_names = list(dataset_classes.reader.class_to_idx.keys())
     #print(class_names)
 
 
     num_workers = multiprocessing.cpu_count()
 
-    dataset = load_dataset("imagefolder", data_dir="oxford-iiit-pet/images/")
+    dataset = load_dataset("imagefolder", data_dir="../oxford-iiit-pet/images/")
     #print(dataset)
     train_split = dataset["train"]
     val_split = dataset["validation"]

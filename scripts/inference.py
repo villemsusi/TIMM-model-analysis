@@ -114,9 +114,6 @@ def test_model(cp_path):
     res = []
     res_all = []
     if args.imgpath == None:
-        
-        
-        
         direc = f"{args.dir}/" if args.dir[-1] not in ["/", "\\"] else args.dir
         correct = 0
         cnt = 0
@@ -164,22 +161,22 @@ if __name__ == "__main__":
     class_names = ['Abyssinian', 'american_bulldog', 'american_pit_bull_terrier', 'basset_hound', 'beagle', 'Bengal', 'Birman', 'Bombay', 'boxer', 'British_Shorthair', 'chihuahua', 'Egyptian_Mau', 'english_cocker_spaniel', 'english_setter', 'german_shorthaired', 'great_pyrenees', 'havanese', 'japanese_chin', 'keeshond', 'leonberger', 'Maine_Coon', 'miniature_pinscher', 'newfoundland', 'Persian', 'pomeranian', 'pug', 'Ragdoll', 'Russian_Blue', 'saint_bernard', 'samoyed', 'scottish_terrier', 'shiba_inu', 'Siamese', 'Sphynx', 'staffordshire_bull_terrier', 'wheaten_terrier', 'yorkshire_terrier']
     class_map = {'Abyssinian':'Abyssinian', 'english_cocker_spaniel':'american_bulldog', 'english_setter':'american_pit_bull_terrier', 'german_shorthaired':'basset_hound', 'great_pyrenees':'beagle', 'american_bulldog':'Bengal', 'american_pit_bull_terrier':'Birman', 'basset_hound':'Bombay', 'havanese':'boxer', 'beagle':'British_Shorthair', 'japanese_chin':'chihuahua', 'Bengal':'Egyptian_Mau', 'keeshond':'english_cocker_spaniel', 'leonberger':'english_setter', 'Maine_Coon':'german_shorthaired', 'miniature_pinscher':'great_pyrenees', 'newfoundland':'havanese', 'Persian':'japanese_chin', 'pomeranian':'keeshond', 'pug':'leonberger', 'Birman':'Maine_Coon', 'Ragdoll':'miniature_pinscher', 'Russian_Blue':'newfoundland', 'Bombay':'Persian', 'saint_bernard':'pomeranian', 'samoyed':'pug', 'boxer':'Ragdoll', 'British_Shorthair':'Russian_Blue', 'scottish_terrier':'saint_bernard', 'shiba_inu':'samoyed', 'Siamese':'scottish_terrier', 'Sphynx':'shiba_inu', 'chihuahua':'Siamese', 'Egyptian_Mau':'Sphynx', 'staffordshire_bull_terrier':'staffordshire_bull_terrier', 'wheaten_terrier':'wheaten_terrier', 'yorkshire_terrier':'yorkshire_terrier'}
 
-    if not os.path.exists("predictions/"):
-        os.makedirs("predictions/")
-    if not os.path.exists("predictions/raw/"):
-        os.makedirs("predictions/raw/")
+    if not os.path.exists("../predictions/"):
+        os.makedirs("../predictions/")
+    if not os.path.exists("../predictions/raw/"):
+        os.makedirs("../predictions/raw/")
 
 
     if args.checkpoint == "all":
         res = pd.DataFrame()
         res_all = pd.DataFrame()
-        for d in os.listdir("PetClassifier/"):
-            checkpoint = os.listdir(f"PetClassifier/{d}")
+        for d in os.listdir("../PetClassifier/"):
+            checkpoint = os.listdir(f"../PetClassifier/{d}")
             if len(checkpoint) == 0:
                 continue
             for i in checkpoint:
                 if ".pth" in i:
-                    dat = test_model(f"PetClassifier/{d}/{i}")
+                    dat = test_model(f"../PetClassifier/{d}/{i}")
                     res = pd.concat([res, dat[0]])
                     res_all = pd.concat([res_all, dat[1]])
                     break
@@ -190,8 +187,8 @@ if __name__ == "__main__":
         
     
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    res.to_csv("predictions/"+timestamp+".csv")
-    res_all.to_csv("predictions/raw/"+timestamp+".csv")
+    res.to_csv("../predictions/"+timestamp+".csv")
+    res_all.to_csv("../predictions/raw/"+timestamp+".csv")
         
     
 

@@ -69,11 +69,11 @@ def MetricCalc(pred_counts):
 
 def main():
     if args.rawdata != None:
-        raw_data = pd.read_csv(args.rawdata)
-        model_data = pd.read_csv(args.modeldata)
+        raw_data = pd.read_csv("../"+args.rawdata)
+        model_data = pd.read_csv("../"+args.modeldata)
     else:
-        raw_data = pd.read_csv("pi_predictions/pi_pred_raw.csv")
-        model_data = pd.read_csv("pi_predictions/pi_pred.csv")
+        raw_data = pd.read_csv("../pi_predictions/pi_pred_raw.csv")
+        model_data = pd.read_csv("../pi_predictions/pi_pred.csv")
     
     model_data.sort_values(by="Model", inplace=True)
 
