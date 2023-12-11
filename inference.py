@@ -138,8 +138,8 @@ def test_model(cp_path):
         img_tensor = transforms.ToTensor()(inp_img)[None].to(device)
 
         pred_data = pd.Series({
-            "Model:": wrapped_model.model.name,
-            "Accuracy:": f"{correct/cnt*100}%",
+            "Model": wrapped_model.model.name,
+            "Accuracy": f"{correct/cnt*100}%",
             "AVG Time": total_time/cnt,
             "AVG Confidence": total_confidence/cnt,
             "FLOP Count": FlopCountAnalysis(wrapped_model, img_tensor).total()
