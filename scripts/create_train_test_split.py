@@ -4,7 +4,7 @@ import shutil
 
 random.seed(10)
 
-
+## Moves files based on a set distribution to train-val-test splits
 def splitRandom(train_size, val_size):
     for f in os.listdir(direc):
         file = os.path.join(direc,f)
@@ -25,6 +25,7 @@ def splitRandom(train_size, val_size):
         else:
             shutil.move(file, direc+"test/"+f)
 
+## Creates labelled subdirectories and moves every image to a correctly labelled subdirectory
 def createSubdirectories(d):
 
     for i, f in enumerate(os.listdir(d)):
@@ -48,7 +49,7 @@ def createSubdirectories(d):
 
 if __name__ == "__main__":
 
-    direc = "oxford-iiit-pet/images/"
+    direc = "../oxford-iiit-pet/images/"
 
     splitRandom(0.75, 0.15, 0.1)
 
