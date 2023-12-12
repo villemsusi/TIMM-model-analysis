@@ -1,6 +1,7 @@
 import os
 import random
 import shutil
+from pathlib import Path
 
 random.seed(10)
 
@@ -49,7 +50,9 @@ def createSubdirectories(d):
 
 if __name__ == "__main__":
 
-    direc = "../oxford-iiit-pet/images/"
+    source_dir = Path(__file__).resolve().parent.parent
+
+    direc = f"{source_dir}/oxford-iiit-pet/images/"
 
     splitRandom(0.75, 0.15, 0.1)
 

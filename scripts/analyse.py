@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 
 import pandas as pd
 import numpy as np
@@ -69,11 +70,11 @@ def MetricCalc(pred_counts):
 
 def main():
     if args.rawdata != None:
-        raw_data = pd.read_csv("../"+args.rawdata)
-        model_data = pd.read_csv("../"+args.modeldata)
+        raw_data = pd.read_csv(args.rawdata)
+        model_data = pd.read_csv(args.modeldata)
     else:
-        raw_data = pd.read_csv("../pi_predictions/pi_pred_raw.csv")
-        model_data = pd.read_csv("../pi_predictions/pi_pred.csv")
+        raw_data = pd.read_csv(f"{source_dir}/pi_predictions/pi_pred_raw_large.csv")
+        model_data = pd.read_csv(f"{source_dir}/pi_predictions/pi_pred_large.csv")
     
     model_data.sort_values(by="Model", inplace=True)
 
@@ -84,12 +85,11 @@ def main():
 
     sample_amount = len(raw_data["Target"]) / len(model_data["Model"])
     models = list(model_metrics.keys())
-    f1_scores = [x[2] for x in list(model_metrics.values())]
-    inf_speeds = list(model_data["AVG Time"])
-    flops = list(model_data["FLOPs"] / list(model_data["AVG Time"]) / (sample_amount))
+    f1_scores = [round(x[2], 3) for x in list(model_metrics.values())]
+    inf_speeds = [round(x, 3) for x in list(model_data["AVG Time"])]
+    flops = [round(x, 3) for x in list(model_data["FLOPs"] / list(model_data["AVG Time"]) / (sample_amount))]
     term = list(map(lambda x, y, z: x / y / z, f1_scores, flops, inf_speeds))
-    normalised_term = normalize([term], 'max')[0]
-
+    normalised_term = [round(x, 3) for x in normalize([term], 'max')[0]]
 
     metric_df = pd.DataFrame({
         "Model": models,
@@ -102,16 +102,30 @@ def main():
     metric_df.sort_values(by="Model", inplace=True, ascending=False)
 
 
-    fx = metric_df.plot.barh(x="Model", y="F1", ylabel="Model", xlabel="F1 Score", title="Multiclass F1 Scores", legend=False, color=plt.cm.Dark2([x%7 for x in range(30)]))
-    ix = metric_df.plot.barh(x="Model", y="Speed", ylabel="Model", xlabel="Inference Speed", title="Inference Speeds", legend=False, color=plt.cm.Dark2([x%7 for x in range(30)]))
-    ox = metric_df.plot.barh(x="Model", y="FLOPs", ylabel="Model", xlabel="FLOPs", title="FLOPs", legend=False, color=plt.cm.Dark2([x%7 for x in range(30)]))
-    tx = metric_df.plot.barh(x="Model", y="Term", ylabel="Model", xlabel="Term", title="F1 / FLOPs / Speed", legend=False, color=plt.cm.Dark2([x%7 for x in range(30)]))
-    
-    for x in [fx, ix, ox, tx]:
-        x.bar_label(x.containers[0], padding=5)
+    fx = metric_df.plot.barh(x="Model", y="F1", legend=False, color=plt.cm.Dark2([x%7 for x in range(30)]))
+    fx.bar_label(fx.containers[0], padding=-100)
+    plt.subplots_adjust(left=0.2, bottom=0.2)
+    plt.savefig(f"{source_dir}/graphs/f1.pdf", bbox_inches="tight")
 
-    plt.show()
+    ix = metric_df.plot.barh(x="Model", y="Speed", legend=False, color=plt.cm.Dark2([x%7 for x in range(30)]))
+    ix.bar_label(ix.containers[0], padding=10)
+    plt.subplots_adjust(left=0.2, bottom=0.2)
+    plt.savefig(f"{source_dir}/graphs/speed.pdf", bbox_inches="tight")
+
+    ox = metric_df.plot.barh(x="Model", y="FLOPs", legend=False, color=plt.cm.Dark2([x%7 for x in range(30)]))
+    ox.bar_label(ox.containers[0], padding=10)
+    plt.subplots_adjust(left=0.2, bottom=0.2)
+    plt.savefig(f"{source_dir}/graphs/flops.pdf", bbox_inches="tight")
+    
+    tx = metric_df.plot.barh(x="Model", y="Term", legend=False, color=plt.cm.Dark2([x%7 for x in range(30)]))
+    tx.bar_label(tx.containers[0], padding=10)
+    plt.subplots_adjust(left=0.2, bottom=0.2)
+    plt.savefig(f"{source_dir}/graphs/term.pdf", bbox_inches="tight")
+        
+    #plt.show()
+    
 
 
 if __name__ == "__main__":
+    source_dir = Path(__file__).resolve().parent.parent
     main()
