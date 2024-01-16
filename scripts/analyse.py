@@ -88,7 +88,7 @@ def main():
     f1_scores = [round(x[2], 3) for x in list(model_metrics.values())]
     inf_speeds = [round(x, 3) for x in list(model_data["AVG Time"])]
     flops = [round(x, 3) for x in list(model_data["FLOPs"] / list(model_data["AVG Time"]) / (sample_amount))]
-    term = list(map(lambda x, y, z: x / y / z, f1_scores, flops, inf_speeds))
+    term = list(map(lambda x, y, z: x * y / z, f1_scores, flops, inf_speeds))
     normalised_term = [round(x, 3) for x in normalize([term], 'max')[0]]
 
     metric_df = pd.DataFrame({
@@ -122,7 +122,7 @@ def main():
     plt.subplots_adjust(left=0.2, bottom=0.2)
     plt.savefig(f"{source_dir}/graphs/term.pdf", bbox_inches="tight")
         
-    #plt.show()
+    plt.show()
     
 
 
